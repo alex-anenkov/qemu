@@ -5,6 +5,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/bswap.h"
+#include "qemu/plugin.h"
 #include "disas/dis-asm.h"
 #include "disas/capstone.h"
 
@@ -49,6 +50,20 @@ static const cs_opt_skipdata cap_skipdata_s390x = {
     .callback = cap_skipdata_s390x_cb
 };
 
+static cs_opt_value cap_get_disas_syntax(disassemble_info *info) {
+    switch (info->dis_syntax) {
+    case QEMU_PLUGIN_DISAS_SYNTAX_INTEL:
+        return CS_OPT_SYNTAX_INTEL;
+
+    case QEMU_PLUGIN_DISAS_SYNTAX_MASM:
+        return CS_OPT_SYNTAX_MASM;
+
+    case QEMU_PLUGIN_DISAS_SYNTAX_ATT:
+    default:
+        return CS_OPT_SYNTAX_ATT;
+    }
+}
+
 /*
  * Initialize the Capstone library.
  *
@@ -82,12 +97,8 @@ static cs_err cap_disas_start(disassemble_info *info, csh *handle)
         break;
 
     case CS_ARCH_X86:
-        /*
-         * We don't care about errors (if for some reason the library
-         * is compiled without AT&T syntax); the user will just have
-         * to deal with the Intel syntax.
-         */
-        cs_option(*handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_ATT);
+        cs_opt_value syntax = cap_get_disas_syntax(info);
+        cs_option(*handle, CS_OPT_SYNTAX, syntax);
         break;
     }
 
