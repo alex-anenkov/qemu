@@ -2762,6 +2762,9 @@ if not fdt.found() and fdt_required.length() > 0
 endif
 
 config_host_data.set('CONFIG_CAPSTONE', capstone.found())
+if capstone.found()
+  config_host_data.set_quoted('CONFIG_CAPSTONE_DISAS_SYNTAX', get_option('capstone_disas_syntax'))
+endif
 config_host_data.set('CONFIG_FDT', fdt.found())
 config_host_data.set('CONFIG_SLIRP', slirp.found())
 
@@ -3964,6 +3967,9 @@ summary_info += {'lzfse support':     liblzfse}
 summary_info += {'zstd support':      zstd}
 summary_info += {'NUMA host support': numa}
 summary_info += {'capstone':          capstone}
+if capstone.found()
+  summary_info += {'capstone disassembler syntax':          get_option('capstone_disas_syntax')}
+endif
 summary_info += {'libpmem support':   libpmem}
 summary_info += {'libdaxctl support': libdaxctl}
 summary_info += {'libudev':           libudev}

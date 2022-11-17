@@ -75,6 +75,19 @@ static cs_err cap_disas_start(disassemble_info *info, csh *handle)
     /* "Disassemble" unknown insns as ".byte W,X,Y,Z".  */
     cs_option(*handle, CS_OPT_SKIPDATA, CS_OPT_ON);
 
+    size_t cs_opt_syntax = CS_OPT_SYNTAX_ATT;
+#ifdef CONFIG_CAPSTONE_DISAS_SYNTAX
+    if (strcmp(CONFIG_CAPSTONE_DISAS_SYNTAX, "att") == 0) {
+        cs_opt_syntax = CS_OPT_SYNTAX_ATT;
+    }
+    else if (strcmp(CONFIG_CAPSTONE_DISAS_SYNTAX, "intel") == 0) {
+        cs_opt_syntax = CS_OPT_SYNTAX_INTEL;
+    }
+    else if (strcmp(CONFIG_CAPSTONE_DISAS_SYNTAX, "masm") == 0) {
+        cs_opt_syntax = CS_OPT_SYNTAX_MASM;
+    }
+#endif
+
     switch (info->cap_arch) {
     case CS_ARCH_SYSZ:
         cs_option(*handle, CS_OPT_SKIPDATA_SETUP,
@@ -87,7 +100,7 @@ static cs_err cap_disas_start(disassemble_info *info, csh *handle)
          * is compiled without AT&T syntax); the user will just have
          * to deal with the Intel syntax.
          */
-        cs_option(*handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_ATT);
+        cs_option(*handle, CS_OPT_SYNTAX, cs_opt_syntax);
         break;
     }
 

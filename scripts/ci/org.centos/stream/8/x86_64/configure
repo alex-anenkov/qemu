@@ -154,6 +154,7 @@
 --enable-avx2 \
 --enable-cap-ng \
 --enable-capstone \
+--capstone-disas-syntax="" \
 --enable-coroutine-pool \
 --enable-curl \
 --enable-debug-info \
