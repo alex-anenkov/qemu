@@ -16,6 +16,7 @@
 #define CS_ARCH_PPC     -1
 #define CS_ARCH_SPARC   -1
 #define CS_ARCH_SYSZ    -1
+#define CS_ARCH_RISCV   -1
 
 #define CS_MODE_LITTLE_ENDIAN    0
 #define CS_MODE_BIG_ENDIAN       0

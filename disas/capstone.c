@@ -76,6 +76,11 @@ static cs_err cap_disas_start(disassemble_info *info, csh *handle)
     cs_option(*handle, CS_OPT_SKIPDATA, CS_OPT_ON);
 
     switch (info->cap_arch) {
+    case CS_ARCH_RISCV:
+        info->fprintf_func(info->stream, "CS_ARCH_RISCV ");
+        cs_option(*handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
+        break;
+
     case CS_ARCH_SYSZ:
         cs_option(*handle, CS_OPT_SKIPDATA_SETUP,
                   (uintptr_t)&cap_skipdata_s390x);
@@ -87,7 +92,7 @@ static cs_err cap_disas_start(disassemble_info *info, csh *handle)
          * is compiled without AT&T syntax); the user will just have
          * to deal with the Intel syntax.
          */
-        cs_option(*handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_ATT);
+        cs_option(*handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL);
         break;
     }
 

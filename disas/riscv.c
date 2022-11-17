@@ -4648,6 +4648,8 @@ disasm_inst(char *buf, size_t buflen, rv_isa isa, uint64_t pc, rv_inst inst)
 static int
 print_insn_riscv(bfd_vma memaddr, struct disassemble_info *info, rv_isa isa)
 {
+    return 0;
+    
     char buf[128] = { 0 };
     bfd_byte packet[2];
     rv_inst inst = 0;

@@ -33,6 +33,7 @@
 #include "fpu/softfloat-helpers.h"
 #include "sysemu/kvm.h"
 #include "kvm_riscv.h"
+#include "disas/capstone.h"
 
 /* RISC-V CPU definitions */
 
@@ -599,10 +600,24 @@ static void riscv_cpu_disas_set_info(CPUState *s, disassemble_info *info)
 
     switch (riscv_cpu_mxl(&cpu->env)) {
     case MXL_RV32:
+#ifdef CONFIG_CAPSTONE
+        info->cap_arch = CS_ARCH_RISCV;
+        info->cap_mode = CS_MODE_RISCV32;
+        info->cap_insn_unit = 2;
+        info->cap_insn_split = 4;
+#else
         info->print_insn = print_insn_riscv32;
+#endif
         break;
     case MXL_RV64:
+#ifdef CONFIG_CAPSTONE
+        info->cap_arch = CS_ARCH_RISCV;
+        info->cap_mode = CS_MODE_RISCV64;
+        info->cap_insn_unit = 2;
+        info->cap_insn_split = 4;
+#else
         info->print_insn = print_insn_riscv64;
+#endif
         break;
     case MXL_RV128:
         info->print_insn = print_insn_riscv128;
