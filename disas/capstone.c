@@ -78,6 +78,7 @@ static cs_err cap_disas_start(disassemble_info *info, csh *handle)
 {
     cs_mode cap_mode = info->cap_mode;
     cs_err err;
+    cs_opt_value cap_dis_syntax;
 
     cap_mode += (info->endian == BFD_ENDIAN_BIG ? CS_MODE_BIG_ENDIAN
                  : CS_MODE_LITTLE_ENDIAN);
@@ -97,8 +98,8 @@ static cs_err cap_disas_start(disassemble_info *info, csh *handle)
         break;
 
     case CS_ARCH_X86:
-        cs_opt_value syntax = cap_get_disas_syntax(info);
-        cs_option(*handle, CS_OPT_SYNTAX, syntax);
+        cap_dis_syntax = cap_get_disas_syntax(info);
+        cs_option(*handle, CS_OPT_SYNTAX, cap_dis_syntax);
         break;
     }
 
