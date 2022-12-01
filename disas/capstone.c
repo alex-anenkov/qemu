@@ -55,8 +55,10 @@ static cs_opt_value cap_get_disas_syntax(disassemble_info *info) {
     case QEMU_PLUGIN_DISAS_SYNTAX_INTEL:
         return CS_OPT_SYNTAX_INTEL;
 
+#if CS_VERSION_MAJOR >= 4
     case QEMU_PLUGIN_DISAS_SYNTAX_MASM:
         return CS_OPT_SYNTAX_MASM;
+#endif
 
     case QEMU_PLUGIN_DISAS_SYNTAX_ATT:
     default:
