@@ -874,12 +874,35 @@ static CPUState *gdb_get_cpu(uint32_t pid, uint32_t tid)
     }
 }
 
+static const char* get_feature_xml_from_cpu(CPUState *cpu, const char* xmlname)
+{
+    CPUClass *cc = CPU_GET_CLASS(cpu);
+    size_t len = strlen(xmlname);
+
+    if (cc->gdb_get_dynamic_xml) {
+        const char *xml = cc->gdb_get_dynamic_xml(cpu, xmlname);
+        if (xml) {
+            return xml;
+        }
+    }
+
+    const char *name = NULL;
+    int i;
+    for (i = 0; ; i++) {
+        name = xml_builtin[i][0];
+        if (!name || (strncmp(name, xmlname, len) == 0 && strlen(name) == len))
+            break;
+    }
+    return name ? xml_builtin[i][1] : NULL;
+
+    // GDBProcess *process = gdb_get_cpu_process(cpu);
+    // const char* xml = get_feature_xml(cc->gdb_core_xml_file, NULL, process);
+}
+
 static const char *get_feature_xml(const char *p, const char **newp,
                                    GDBProcess *process)
 {
     size_t len;
-    int i;
-    const char *name;
     CPUState *cpu = get_first_cpu_in_process(process);
     CPUClass *cc = CPU_GET_CLASS(cpu);
 
@@ -888,7 +911,6 @@ static const char *get_feature_xml(const char *p, const char **newp,
         len++;
     *newp = p + len;
 
-    name = NULL;
     if (strncmp(p, "target.xml", len) == 0) {
         char *buf = process->target_xml;
         const size_t buf_sz = sizeof(process->target_xml);
@@ -920,24 +942,146 @@ static const char *get_feature_xml(const char *p, const char **newp,
         }
         return buf;
     }
-    if (cc->gdb_get_dynamic_xml) {
-        char *xmlname = g_strndup(p, len);
-        const char *xml = cc->gdb_get_dynamic_xml(cpu, xmlname);
 
-        g_free(xmlname);
-        if (xml) {
-            return xml;
-        }
-    }
-    for (i = 0; ; i++) {
-        name = xml_builtin[i][0];
-        if (!name || (strncmp(name, p, len) == 0 && strlen(name) == len))
-            break;
-    }
-    return name ? xml_builtin[i][1] : NULL;
+    char *xmlname = g_strndup(p, len);
+    const char *xml = get_feature_xml_from_cpu(cpu, xmlname);
+    g_free(xmlname);
+    return xml;
 }
 
-static int gdb_read_register(CPUState *cpu, GByteArray *buf, int reg)
+typedef struct xml_parser_data {
+    CPUState *cpu;
+    int next_regnum;
+} xml_parser_data;
+
+/* Handle the start of a <reg> element. */
+static void xml_start_reg(GMarkupParseContext *context,
+                          const gchar         *element_name,
+                          const gchar        **attribute_names,
+                          const gchar        **attribute_values,
+                          gpointer             user_data,
+                          GError             **error)
+{
+    if (strcmp(element_name, "reg") != 0)
+        return;
+
+    const char *name;
+    int regnum, i;
+
+    g_assert(user_data != NULL);
+    xml_parser_data *data = (xml_parser_data *)user_data;
+    g_assert(data->cpu != NULL);
+
+    CPUClass *cc = CPU_GET_CLASS(data->cpu);
+    regnum = data->next_regnum;
+
+    i = 0;
+    name = NULL;
+    while (attribute_names[i] != NULL) {
+        if (strcmp(attribute_names[i], "name") == 0) {
+            name = attribute_values[i];
+        }
+        else if (strcmp(attribute_names[i], "regnum") == 0) {
+            regnum = atoi(attribute_values[i]);
+        }
+        i++;
+    }
+    g_assert(name != NULL);
+
+    if (regnum < data->next_regnum) {
+        error_report("Error: Bad gdb register numbering for register '%s', "
+                     "expected %d got %d", name, data->next_regnum, regnum);
+        g_assert_not_reached();
+    }
+    data->next_regnum = regnum + 1;
+
+    if (g_hash_table_contains(cc->gdb_register_names, name)) {
+        error_report("Error: Gdb register '%s', already exists", name);
+        g_assert_not_reached();
+    }
+
+    printf("name = %s, regnum = %d\n", name, regnum);
+    g_hash_table_insert(cc->gdb_register_names, g_strdup(name), GINT_TO_POINTER(regnum));
+}
+
+static void parse_target_xml(xml_parser_data *data, const char* xml)
+{
+    if (!xml)
+        return;
+
+    GMarkupParser *parser;
+    GMarkupParseContext *context;
+    GError *error = NULL;
+
+    parser = g_new0(GMarkupParser, 1);
+    parser->start_element = xml_start_reg;
+
+    context = g_markup_parse_context_new(parser, 0, data, 0);
+    g_markup_parse_context_parse(context, xml, strlen(xml), &error);
+    g_markup_parse_context_free(context);
+    if (error != NULL){
+        error_report("Error: Failed to parse xml file: %s", error->message);
+        g_error_free(error);
+    }
+    g_free(parser);
+}
+
+static const char* get_target_xml(CPUState *cpu)
+{
+    CPUClass *cc = CPU_GET_CLASS(cpu);
+    return get_feature_xml_from_cpu(cpu, cc->gdb_core_xml_file);
+}
+
+/**
+ * Allocates the global @gdb_register_names hash table.
+ */
+static void gdb_init_register_names_table(CPUState *cpu)
+{
+    CPUClass *cc = CPU_GET_CLASS(cpu);
+    if (cc->gdb_register_names) {
+        return;
+    }
+
+    cc->gdb_register_names = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+
+    xml_parser_data data;
+    data.cpu = cpu;
+    data.next_regnum = 0;
+
+    const char *xml = get_target_xml(cpu);
+    if (xml) {
+        parse_target_xml(&data, xml);
+    }
+
+    GDBRegisterState *r;
+    for (r = cpu->gdb_regs; r; r = r->next) {
+        if (r && r->xml) {
+            printf("additional xml file %s\n", r->xml);
+            const char *xml = get_feature_xml_from_cpu(cpu, r->xml);
+            if (xml) {
+                parse_target_xml(&data, xml);
+            }
+        }
+    }
+}
+
+bool gdb_find_register_number(CPUState *cpu, const char* name, int *reg)
+{
+    g_assert(name != NULL);
+    CPUClass *cc = CPU_GET_CLASS(cpu);
+    gdb_init_register_names_table(cpu);
+
+    gpointer orig_key, val;
+    bool res = g_hash_table_lookup_extended(cc->gdb_register_names, name, &orig_key, &val);
+    if (res == false) {
+        warn_report("gdb register '%s' not found", name);
+    }
+    *reg = GPOINTER_TO_INT(val);
+
+    return res;
+}
+
+int gdb_read_register(CPUState *cpu, GByteArray *buf, int reg)
 {
     CPUClass *cc = CPU_GET_CLASS(cpu);
     CPUArchState *env = cpu->env_ptr;

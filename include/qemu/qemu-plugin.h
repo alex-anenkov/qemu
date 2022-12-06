@@ -11,6 +11,7 @@
 #ifndef QEMU_QEMU_PLUGIN_H
 #define QEMU_QEMU_PLUGIN_H
 
+#include <glib.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -118,6 +119,10 @@ typedef void (*qemu_plugin_simple_cb_t)(qemu_plugin_id_t id);
  * was registered.
  */
 typedef void (*qemu_plugin_udata_cb_t)(qemu_plugin_id_t id, void *userdata);
+
+typedef int qemu_plugin_reg_handle_t;
+bool qemu_plugin_find_reg(const char *name, qemu_plugin_reg_handle_t *reg);
+size_t qemu_plugin_read_reg(const qemu_plugin_reg_handle_t *reg, GByteArray **buf);
 
 /**
  * typedef qemu_plugin_vcpu_simple_cb_t - vcpu callback

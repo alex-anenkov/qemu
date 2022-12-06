@@ -52,6 +52,8 @@
 #endif
 #endif
 
+#include "exec/gdbstub.h"
+
 /* Uninstall and Reset handlers */
 
 void qemu_plugin_uninstall(qemu_plugin_id_t id, qemu_plugin_simple_cb_t cb)
@@ -62,6 +64,32 @@ void qemu_plugin_uninstall(qemu_plugin_id_t id, qemu_plugin_simple_cb_t cb)
 void qemu_plugin_reset(qemu_plugin_id_t id, qemu_plugin_simple_cb_t cb)
 {
     plugin_reset_uninstall(id, cb, true);
+}
+
+bool qemu_plugin_find_reg(const char *name, qemu_plugin_reg_handle_t *reg)
+{
+    if (name == NULL || reg == NULL)
+        return false;
+
+    CPUState *cpu = current_cpu;
+    return gdb_find_register_number(cpu, name, reg);
+}
+
+// int qemu_plugin_read_register(void *buf, int buf_len, int reg)
+// {
+
+// }
+
+size_t qemu_plugin_read_reg(const qemu_plugin_reg_handle_t *reg, GByteArray **buf)
+{
+    if (buf == NULL || reg == NULL)
+        return 0;
+
+    CPUState *cpu = current_cpu;
+    GByteArray* arr = g_byte_array_new();
+    size_t size = gdb_read_register(cpu, arr, *reg);
+    *buf = arr;
+    return size;
 }
 
 /*

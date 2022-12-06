@@ -185,6 +185,7 @@ struct CPUClass {
     int reset_dump_flags;
     int gdb_num_core_regs;
     bool gdb_stop_before_watchpoint;
+    GHashTable* gdb_register_names;
 };
 
 /*
