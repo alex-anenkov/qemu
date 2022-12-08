@@ -66,30 +66,29 @@ void qemu_plugin_reset(qemu_plugin_id_t id, qemu_plugin_simple_cb_t cb)
     plugin_reset_uninstall(id, cb, true);
 }
 
-bool qemu_plugin_find_reg(const char *name, qemu_plugin_reg_handle_t *reg)
+/* CPU registers */
+
+bool qemu_plugin_find_reg(const char *name, size_t *idx)
 {
-    if (name == NULL || reg == NULL)
+    if (name == NULL)
         return false;
 
-    CPUState *cpu = current_cpu;
-    return gdb_find_register_number(cpu, name, reg);
+    int reg = 0;
+    bool found = gdb_find_register_number(current_cpu, name, &reg);
+    if (idx)
+        *idx = reg;
+    return found;
 }
 
-// int qemu_plugin_read_register(void *buf, int buf_len, int reg)
-// {
-
-// }
-
-size_t qemu_plugin_read_reg(const qemu_plugin_reg_handle_t *reg, GByteArray **buf)
+void *qemu_plugin_read_reg(size_t idx, size_t *size)
 {
-    if (buf == NULL || reg == NULL)
-        return 0;
+    g_assert(idx <= INT_MAX);
 
-    CPUState *cpu = current_cpu;
     GByteArray* arr = g_byte_array_new();
-    size_t size = gdb_read_register(cpu, arr, *reg);
-    *buf = arr;
-    return size;
+    gdb_read_register(current_cpu, arr, idx);
+    if (size)
+        *size = arr->len;
+    return g_byte_array_free(arr, false);
 }
 
 /*

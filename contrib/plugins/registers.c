@@ -17,17 +17,50 @@
 
 QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
 
-static void print_register(GString *log, const char *reg_name, unsigned int cpu_index)
+#define DF_MASK                 0x00000400
+/* eflags masks */
+#define CC_C    0x0001
+#define CC_P    0x0004
+#define CC_A    0x0010
+#define CC_Z    0x0040
+#define CC_S    0x0080
+#define CC_O    0x0800
+
+static void print_eflags(GString *log,
+                         const char *regname,
+                         uint64_t *regdata,
+                         size_t regdata_size,
+                         unsigned int cpu_index)
 {
-    qemu_plugin_reg_handle_t reg;
-    if (qemu_plugin_find_reg(reg_name, &reg)) {
-        g_autoptr(GByteArray) regdata;
-        size_t size = qemu_plugin_read_reg(&reg, &regdata);
-        uint64_t v = g_array_index(regdata, uint64_t, 0);
-        g_string_append_printf(log, "cpu=%u, %s=%016" PRIx64 ", size=%ld\n", cpu_index, reg_name, v, size);
+    uint32_t v = (uint32_t)*regdata;
+    g_string_append_printf(log, "cpu=%u, %s=%08x [%c%c%c%c%c%c%c], size=%ld\n", cpu_index, regname,
+                v,
+                v & DF_MASK ? 'D' : '-',
+                v & CC_O ? 'O' : '-',
+                v & CC_S ? 'S' : '-',
+                v & CC_Z ? 'Z' : '-',
+                v & CC_A ? 'A' : '-',
+                v & CC_P ? 'P' : '-',
+                v & CC_C ? 'C' : '-',
+                regdata_size);
+}
+
+static void print_register(GString *log, const char *regname, unsigned int cpu_index)
+{
+    size_t reg;
+    if (qemu_plugin_find_reg(regname, &reg)) {
+        size_t regdata_size;
+        uint64_t *regdata = qemu_plugin_read_reg(reg, &regdata_size);
+        if (strcmp(regname, "eflags") == 0) {
+            print_eflags(log, regname, regdata, regdata_size, cpu_index);
+        }
+        else {
+            g_string_append_printf(log, "cpu=%u, %s=%08x, size=%ld\n", cpu_index, regname, (uint32_t)*regdata, regdata_size);
+        }
+        g_free(regdata);
     }
     else {
-        g_string_append_printf(log, "register %s not found\n", reg_name);
+        g_string_append_printf(log, "register %s not found\n", regname);
     }
 }
 
@@ -62,6 +95,7 @@ static void vcpu_insn_exec(unsigned int cpu_index, void *udata)
     print_register(log, "gs", cpu_index);
     print_register(log, "fs_base", cpu_index);
     print_register(log, "gs_base", cpu_index);
+    print_register(log, "eflags", cpu_index);
     qemu_plugin_outs(log->str);
 }
 
