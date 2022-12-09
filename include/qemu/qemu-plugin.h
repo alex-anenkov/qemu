@@ -119,9 +119,6 @@ typedef void (*qemu_plugin_simple_cb_t)(qemu_plugin_id_t id);
  */
 typedef void (*qemu_plugin_udata_cb_t)(qemu_plugin_id_t id, void *userdata);
 
-bool qemu_plugin_find_reg(const char *name, size_t *idx);
-void *qemu_plugin_read_reg(size_t idx, size_t *size);
-
 /**
  * typedef qemu_plugin_vcpu_simple_cb_t - vcpu callback
  * @id: the unique qemu_plugin_id_t
@@ -396,6 +393,25 @@ uint64_t qemu_plugin_insn_vaddr(const struct qemu_plugin_insn *insn);
  * Returns: hardware (physical) target address of instruction
  */
 void *qemu_plugin_insn_haddr(const struct qemu_plugin_insn *insn);
+
+/**
+ * qemu_plugin_find_reg() - find register by name
+ * @name: register name
+ * @idx: a pointer to store register index
+ *
+ * Returns: true if found, false otherwise
+ */
+bool qemu_plugin_find_reg(const char *name, size_t *idx);
+
+/**
+ * qemu_plugin_read_reg() - return register data
+ * @idx: register index
+ * @size: a pointer to store allocated memory size
+ *
+ * Returns allocated memory containing register data,
+ * memory must be freed manually
+ */
+void *qemu_plugin_read_reg(size_t idx, size_t *size);
 
 /**
  * typedef qemu_plugin_meminfo_t - opaque memory transaction handle

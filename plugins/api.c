@@ -66,31 +66,6 @@ void qemu_plugin_reset(qemu_plugin_id_t id, qemu_plugin_simple_cb_t cb)
     plugin_reset_uninstall(id, cb, true);
 }
 
-/* CPU registers */
-
-bool qemu_plugin_find_reg(const char *name, size_t *idx)
-{
-    if (name == NULL)
-        return false;
-
-    int reg = 0;
-    bool found = gdb_find_register_number(current_cpu, name, &reg);
-    if (idx)
-        *idx = reg;
-    return found;
-}
-
-void *qemu_plugin_read_reg(size_t idx, size_t *size)
-{
-    g_assert(idx <= INT_MAX);
-
-    GByteArray* arr = g_byte_array_new();
-    gdb_read_register(current_cpu, arr, idx);
-    if (size)
-        *size = arr->len;
-    return g_byte_array_free(arr, false);
-}
-
 /*
  * Plugin Register Functions
  *
@@ -269,6 +244,36 @@ const char *qemu_plugin_insn_symbol(const struct qemu_plugin_insn *insn)
 {
     const char *sym = lookup_symbol(insn->vaddr);
     return sym[0] != 0 ? sym : NULL;
+}
+
+/* 
+ * CPU registers
+ *
+ * These queries allow the plugin to retrieve information about current
+ * CPU registers
+ */
+
+bool qemu_plugin_find_reg(const char *name, size_t *idx)
+{
+    if (name == NULL)
+        return false;
+
+    int reg = 0;
+    bool found = gdb_find_register_number(current_cpu, name, &reg);
+    if (idx)
+        *idx = reg;
+    return found;
+}
+
+void *qemu_plugin_read_reg(size_t idx, size_t *size)
+{
+    g_assert(idx <= INT_MAX);
+
+    GByteArray* arr = g_byte_array_new();
+    gdb_read_register(current_cpu, arr, idx);
+    if (size)
+        *size = arr->len;
+    return g_byte_array_free(arr, false);
 }
 
 /*

@@ -1,10 +1,5 @@
 /*
- * Copyright (C) 2021, Alexandre Iooss <erdnaxe@crans.org>
- *
- * Log instruction execution with memory access.
- *
- * License: GNU GPL, version 2 or later.
- *   See the COPYING file in the top-level directory.
+ * TODO: header
  */
 #include <glib.h>
 #include <inttypes.h>
@@ -69,7 +64,7 @@ static void print_register_to_log(gpointer data, gpointer user_data)
 
     size_t size;
     uint64_t *value = qemu_plugin_read_reg(reg->idx, &size);
-    // FIX
+    // FIX use 64-bit printing
     g_string_append_printf(cache->log, "vcpu=%u, %s=%08x, size=%ld\n", cache->vcpu_index, reg->name, (uint32_t)*value, size);
     g_free(value);
 }
