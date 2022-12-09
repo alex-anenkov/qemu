@@ -98,7 +98,7 @@ static int gdb_write_reg_cs64(uint32_t hflags, uint8_t *buf, target_ulong *val)
 
 int x86_cpu_gdb_read_register(CPUState *cs, GByteArray *mem_buf, int n)
 {
-    X86CPU *cpu = X86_CPU(cs);
+    X86CPU *cpu = (X86CPU *)cs->arch;
     CPUX86State *env = &cpu->env;
 
     uint64_t tpr;

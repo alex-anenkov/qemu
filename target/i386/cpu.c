@@ -6397,6 +6397,8 @@ static void x86_cpu_realizefn(DeviceState *dev, Error **errp)
 {
     CPUState *cs = CPU(dev);
     X86CPU *cpu = X86_CPU(dev);
+    /* cache the arch class for the hotpath */
+    cs->arch = (struct ArchCPU *)cpu;
     X86CPUClass *xcc = X86_CPU_GET_CLASS(dev);
     CPUX86State *env = &cpu->env;
     Error *local_err = NULL;

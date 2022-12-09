@@ -876,7 +876,7 @@ static CPUState *gdb_get_cpu(uint32_t pid, uint32_t tid)
 
 static const char* get_feature_xml_from_cpu(CPUState *cpu, const char* xmlname)
 {
-    CPUClass *cc = CPU_GET_CLASS(cpu);
+    CPUClass *cc = cpu->cc;
     size_t len = strlen(xmlname);
 
     if (cc->gdb_get_dynamic_xml) {
@@ -904,7 +904,7 @@ static const char *get_feature_xml(const char *p, const char **newp,
 {
     size_t len;
     CPUState *cpu = get_first_cpu_in_process(process);
-    CPUClass *cc = CPU_GET_CLASS(cpu);
+    CPUClass *cc = cpu->cc;
 
     len = 0;
     while (p[len] && p[len] != ':')
@@ -972,7 +972,7 @@ static void xml_start_reg(GMarkupParseContext *context,
     xml_parser_data *data = (xml_parser_data *)user_data;
     g_assert(data->cpu != NULL);
 
-    CPUClass *cc = CPU_GET_CLASS(data->cpu);
+    CPUClass *cc = data->cpu->cc;
     regnum = data->next_regnum;
 
     i = 0;
@@ -1028,7 +1028,7 @@ static void parse_target_xml(xml_parser_data *data, const char* xml)
 
 static const char* get_target_xml(CPUState *cpu)
 {
-    CPUClass *cc = CPU_GET_CLASS(cpu);
+    CPUClass *cc = cpu->cc;
     return get_feature_xml_from_cpu(cpu, cc->gdb_core_xml_file);
 }
 
@@ -1037,7 +1037,7 @@ static const char* get_target_xml(CPUState *cpu)
  */
 static void gdb_init_register_names_table(CPUState *cpu)
 {
-    CPUClass *cc = CPU_GET_CLASS(cpu);
+    CPUClass *cc = cpu->cc;
     if (cc->gdb_register_names) {
         return;
     }
@@ -1068,7 +1068,7 @@ static void gdb_init_register_names_table(CPUState *cpu)
 bool gdb_find_register_number(CPUState *cpu, const char* name, int *reg)
 {
     g_assert(name != NULL);
-    CPUClass *cc = CPU_GET_CLASS(cpu);
+    CPUClass *cc = cpu->cc;
     gdb_init_register_names_table(cpu);
 
     gpointer orig_key, val;
@@ -1083,7 +1083,7 @@ bool gdb_find_register_number(CPUState *cpu, const char* name, int *reg)
 
 int gdb_read_register(CPUState *cpu, GByteArray *buf, int reg)
 {
-    CPUClass *cc = CPU_GET_CLASS(cpu);
+    CPUClass *cc = cpu->cc;
     CPUArchState *env = cpu->env_ptr;
     GDBRegisterState *r;
 
@@ -1101,7 +1101,7 @@ int gdb_read_register(CPUState *cpu, GByteArray *buf, int reg)
 
 static int gdb_write_register(CPUState *cpu, uint8_t *mem_buf, int reg)
 {
-    CPUClass *cc = CPU_GET_CLASS(cpu);
+    CPUClass *cc = cpu->cc;
     CPUArchState *env = cpu->env_ptr;
     GDBRegisterState *r;
 
