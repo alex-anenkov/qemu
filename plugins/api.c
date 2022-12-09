@@ -258,8 +258,9 @@ bool qemu_plugin_find_reg(const char *name, size_t *idx)
     if (name == NULL)
         return false;
 
-    int reg = 0;
-    bool found = gdb_find_register_number(current_cpu, name, &reg);
+    int reg = 0, bitsize = 0;
+    bool found = gdb_find_register_idx_and_bitsize(current_cpu, name,
+                                                   &reg, &bitsize);
     if (idx)
         *idx = reg;
     return found;

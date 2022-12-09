@@ -946,6 +946,11 @@ static const char *get_feature_xml(const char *p, const char **newp,
     return xml;
 }
 
+typedef struct reg_table_data {
+    int bitsize;
+    int regnum;
+} reg_table_data;
+
 typedef struct xml_parser_data {
     CPUState *cpu;
     int next_regnum;
@@ -963,14 +968,14 @@ static void xml_start_reg(GMarkupParseContext *context,
         return;
 
     const char *name;
-    int regnum, i;
+    int regnum, bitsize = 0, i;
 
     g_assert(user_data != NULL);
-    xml_parser_data *data = (xml_parser_data *)user_data;
-    g_assert(data->cpu != NULL);
+    xml_parser_data *parser_data = (xml_parser_data *)user_data;
+    g_assert(parser_data->cpu != NULL);
 
-    CPUClass *cc = data->cpu->cc;
-    regnum = data->next_regnum;
+    CPUClass *cc = parser_data->cpu->cc;
+    regnum = parser_data->next_regnum;
 
     i = 0;
     name = NULL;
@@ -981,22 +986,30 @@ static void xml_start_reg(GMarkupParseContext *context,
         else if (strcmp(attribute_names[i], "regnum") == 0) {
             regnum = atoi(attribute_values[i]);
         }
+        else if (strcmp(attribute_names[i], "bitsize") == 0) {
+            bitsize = atoi(attribute_values[i]);
+        }
         i++;
     }
     g_assert(name != NULL);
 
-    if (regnum < data->next_regnum) {
+    if (regnum < parser_data->next_regnum) {
         error_report("Error: Bad gdb register numbering for register '%s', "
-                     "expected %d got %d", name, data->next_regnum, regnum);
+                     "expected %d got %d", name, parser_data->next_regnum, regnum);
         g_assert_not_reached();
     }
-    data->next_regnum = regnum + 1;
+    parser_data->next_regnum = regnum + 1;
 
     if (g_hash_table_contains(cc->gdb_reg_names, name)) {
         error_report("Error: Gdb register '%s', already exists", name);
         g_assert_not_reached();
     }
-    g_hash_table_insert(cc->gdb_reg_names, g_strdup(name), GINT_TO_POINTER(regnum));
+
+    // memory will be freed automatically when table is destroyed
+    reg_table_data *reg_data = g_new0(reg_table_data, 1);
+    reg_data->bitsize = bitsize;
+    reg_data->regnum = regnum;
+    g_hash_table_insert(cc->gdb_reg_names, g_strdup(name), reg_data);
 }
 
 static void parse_target_xml(xml_parser_data *data, const char *xml)
@@ -1038,7 +1051,7 @@ static void gdb_init_register_names_table(CPUState *cpu)
     }
 
     cc->gdb_reg_names = g_hash_table_new_full(g_str_hash, g_str_equal,
-                                              g_free, NULL);
+                                              g_free, g_free);
 
     xml_parser_data *data = g_new0(xml_parser_data, 1);
     data->cpu = cpu;
@@ -1063,7 +1076,7 @@ static void gdb_init_register_names_table(CPUState *cpu)
     g_free(data);
 }
 
-bool gdb_find_register_number(CPUState *cpu, const char *name, int *reg)
+bool gdb_find_register_idx_and_bitsize(CPUState *cpu, const char *name, int *reg, int *bitsize)
 {
     g_assert(name != NULL);
     CPUClass *cc = cpu->cc;
@@ -1072,12 +1085,16 @@ bool gdb_find_register_number(CPUState *cpu, const char *name, int *reg)
     gpointer orig_key, val;
     bool res = g_hash_table_lookup_extended(cc->gdb_reg_names, name,
                                             &orig_key, &val);
-    if (res == false) {
+    if (res == false || val == NULL) {
         warn_report("gdb register '%s' not found", name);
+        return false;
     }
-    *reg = GPOINTER_TO_INT(val);
 
-    return res;
+    reg_table_data *data = (reg_table_data *)val;
+    *reg = data->regnum;
+    *bitsize = data->bitsize;
+
+    return true;
 }
 
 int gdb_read_register(CPUState *cpu, GByteArray *buf, int reg)
