@@ -107,7 +107,7 @@ static void free_vcpu_cache(vcpu_cache *cache)
 static void vcpu_insn_exec(unsigned int vcpu_index, void *udata)
 {
     init_vcpu_cache(&caches[vcpu_index], vcpu_index);
-
+    
     g_list_foreach(caches[vcpu_index].reglist,
                    (GFunc)print_register_to_log, &caches[vcpu_index]);
 

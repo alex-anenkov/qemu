@@ -894,9 +894,6 @@ static const char* get_feature_xml_from_cpu(CPUState *cpu, const char* xmlname)
             break;
     }
     return name ? xml_builtin[i][1] : NULL;
-
-    // GDBProcess *process = gdb_get_cpu_process(cpu);
-    // const char* xml = get_feature_xml(cc->gdb_core_xml_file, NULL, process);
 }
 
 static const char *get_feature_xml(const char *p, const char **newp,
@@ -995,16 +992,14 @@ static void xml_start_reg(GMarkupParseContext *context,
     }
     data->next_regnum = regnum + 1;
 
-    if (g_hash_table_contains(cc->gdb_register_names, name)) {
+    if (g_hash_table_contains(cc->gdb_reg_names, name)) {
         error_report("Error: Gdb register '%s', already exists", name);
         g_assert_not_reached();
     }
-
-    printf("name = %s, regnum = %d\n", name, regnum);
-    g_hash_table_insert(cc->gdb_register_names, g_strdup(name), GINT_TO_POINTER(regnum));
+    g_hash_table_insert(cc->gdb_reg_names, g_strdup(name), GINT_TO_POINTER(regnum));
 }
 
-static void parse_target_xml(xml_parser_data *data, const char* xml)
+static void parse_target_xml(xml_parser_data *data, const char *xml)
 {
     if (!xml)
         return;
@@ -1033,46 +1028,50 @@ static const char* get_target_xml(CPUState *cpu)
 }
 
 /**
- * Allocates the global @gdb_register_names hash table.
+ * Allocates the global @gdb_reg_names hash table only once
  */
 static void gdb_init_register_names_table(CPUState *cpu)
 {
     CPUClass *cc = cpu->cc;
-    if (cc->gdb_register_names) {
+    if (cc->gdb_reg_names) {
         return;
     }
 
-    cc->gdb_register_names = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+    cc->gdb_reg_names = g_hash_table_new_full(g_str_hash, g_str_equal,
+                                              g_free, NULL);
 
-    xml_parser_data data;
-    data.cpu = cpu;
-    data.next_regnum = 0;
+    xml_parser_data *data = g_new0(xml_parser_data, 1);
+    data->cpu = cpu;
+    data->next_regnum = 0;
 
     const char *xml = get_target_xml(cpu);
     if (xml) {
-        parse_target_xml(&data, xml);
+        parse_target_xml(data, xml);
     }
 
+    /* parse additional xml files */
     GDBRegisterState *r;
     for (r = cpu->gdb_regs; r; r = r->next) {
         if (r && r->xml) {
-            printf("additional xml file %s\n", r->xml);
             const char *xml = get_feature_xml_from_cpu(cpu, r->xml);
             if (xml) {
-                parse_target_xml(&data, xml);
+                parse_target_xml(data, xml);
             }
         }
     }
+
+    g_free(data);
 }
 
-bool gdb_find_register_number(CPUState *cpu, const char* name, int *reg)
+bool gdb_find_register_number(CPUState *cpu, const char *name, int *reg)
 {
     g_assert(name != NULL);
     CPUClass *cc = cpu->cc;
     gdb_init_register_names_table(cpu);
 
     gpointer orig_key, val;
-    bool res = g_hash_table_lookup_extended(cc->gdb_register_names, name, &orig_key, &val);
+    bool res = g_hash_table_lookup_extended(cc->gdb_reg_names, name,
+                                            &orig_key, &val);
     if (res == false) {
         warn_report("gdb register '%s' not found", name);
     }
