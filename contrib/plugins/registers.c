@@ -64,8 +64,21 @@ static void print_register_to_log(gpointer data, gpointer user_data)
 
     size_t size;
     uint64_t *value = qemu_plugin_read_reg(reg->idx, &size);
-    // FIX use 64-bit printing
-    g_string_append_printf(cache->log, "vcpu=%u, %s=%08x, size=%ld\n", cache->vcpu_index, reg->name, (uint32_t)*value, size);
+    g_string_append_printf(cache->log, "vcpu=%u, %s=", cache->vcpu_index, reg->name);
+
+    if (size == 4) {
+        g_string_append_printf(cache->log, "%08x", (uint32_t)*value);
+    }
+    else if (size == 8) {
+        g_string_append_printf(cache->log, "%016" PRIx64, *value);
+    }
+    else {
+        // unknown register size
+        g_assert_not_reached();
+    }
+
+    g_string_append_printf(cache->log, ", size=%ld\n", size);
+
     g_free(value);
 }
 
@@ -94,8 +107,10 @@ static void free_vcpu_cache(vcpu_cache *cache)
 static void vcpu_insn_exec(unsigned int vcpu_index, void *udata)
 {
     init_vcpu_cache(&caches[vcpu_index], vcpu_index);
+
     g_list_foreach(caches[vcpu_index].reglist,
                    (GFunc)print_register_to_log, &caches[vcpu_index]);
+
     caches[vcpu_index].print_counter++;
     if (caches[vcpu_index].print_counter >= LOG_BUF_N_INSN) {
         qemu_plugin_outs(caches[vcpu_index].log->str);
