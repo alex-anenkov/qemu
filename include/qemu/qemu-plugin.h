@@ -394,24 +394,90 @@ uint64_t qemu_plugin_insn_vaddr(const struct qemu_plugin_insn *insn);
  */
 void *qemu_plugin_insn_haddr(const struct qemu_plugin_insn *insn);
 
+/** struct qemu_plugin_reg_ctx - Opaque handle for register context */
+struct qemu_plugin_reg_ctx;
+
+/**
+ * qemu_plugin_reg_create_context() - create a context for working with registers
+ * @names: array with register names
+ * @len: array length
+ *
+ * Returns: opaque handle to register context
+ */
+struct qemu_plugin_reg_ctx *
+qemu_plugin_reg_create_context(const char * const *names, size_t len);
+
+/**
+ * qemu_plugin_reg_free_context() - free the register context
+ * @ctx: register context
+ */
+void qemu_plugin_reg_free_context(struct qemu_plugin_reg_ctx *ctx);
+
+/**
+ * qemu_plugin_n_regs() - query helper for number of registers in context
+ * @ctx: register context
+ *
+ * Returns: number of registers in context
+ */
+size_t qemu_plugin_n_regs(struct qemu_plugin_reg_ctx *ctx);
+
+/**
+ * qemu_plugin_reg_get_ptr() - query helper for a pointer to register data in context
+ * @ctx: register context
+ * @idx: register index
+ *
+ * Returns: pointer to register data
+ */
+const void *qemu_plugin_reg_get_ptr(struct qemu_plugin_reg_ctx *ctx, size_t idx);
+
+/**
+ * qemu_plugin_reg_get_size() - query helper for register size in context
+ * @ctx: register context
+ * @idx: register index
+ *
+ * Returns: returns size of register data
+ */
+size_t qemu_plugin_reg_get_size(struct qemu_plugin_reg_ctx *ctx, size_t idx);
+
+/**
+ * qemu_plugin_reg_get_size() - query helper for register name in context
+ * @ctx: register context
+ * @idx: register index
+ *
+ * Returns: returns register name
+ */
+const char *qemu_plugin_reg_get_name(struct qemu_plugin_reg_ctx *ctx, size_t idx);
+
+/**
+ * qemu_plugin_regs_read_all() - read data from all registers
+ * and store them in context
+ * @ctx: register context
+ *
+ * This call does not require qemu_plugin_reg_get_ptr()
+ * or qemu_plugin_reg_get_size() to be called again,
+ * because the data will be overwritten in the context at the same positions.
+ * So it's just an update call
+ */
+void qemu_plugin_regs_read_all(struct qemu_plugin_reg_ctx *ctx);
+
 /**
  * qemu_plugin_find_reg() - find register by name
  * @name: register name
- * @idx: a pointer to store register index
+ * @regnum: a pointer to store register number
  *
  * Returns: true if found, false otherwise
  */
-bool qemu_plugin_find_reg(const char *name, size_t *idx);
+bool qemu_plugin_find_reg(const char *name, int *regnum);
 
 /**
  * qemu_plugin_read_reg() - return register data
- * @idx: register index
+ * @regnum: register number
  * @size: a pointer to store allocated memory size
  *
  * Returns allocated memory containing register data,
  * memory must be freed manually
  */
-void *qemu_plugin_read_reg(size_t idx, size_t *size);
+const void *qemu_plugin_read_reg(int regnum, size_t *size);
 
 /**
  * typedef qemu_plugin_meminfo_t - opaque memory transaction handle

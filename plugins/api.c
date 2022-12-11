@@ -246,32 +246,173 @@ const char *qemu_plugin_insn_symbol(const struct qemu_plugin_insn *insn)
     return sym[0] != 0 ? sym : NULL;
 }
 
-/* 
+/*
  * CPU registers
  *
  * These queries allow the plugin to retrieve information about current
  * CPU registers
  */
 
-bool qemu_plugin_find_reg(const char *name, size_t *idx)
+struct qemu_plugin_reg_ctx {
+    CPUState *cpu;
+
+    size_t *regnums;
+    size_t *bitsizes;
+    gchar **names;
+
+    /* cache the initial position of the register data
+    in the general data array */
+    size_t *offsets;
+
+    /* the actual number of registers in the context.
+       This number may be less than requested if any of the registers
+       was not found */
+    size_t n_regs;
+
+    /* contains registers one by one */
+    GByteArray *data;
+
+    /* remember how much memory was actually allocated for the data.
+       This value is used to check that the length of the array has not changed
+       after reading the registers. it mustn't happen */
+    size_t alloc_data_len;
+};
+
+struct qemu_plugin_reg_ctx *qemu_plugin_reg_create_context(const char * const *names, size_t len)
+{
+    size_t reqested_len, actual_len, total_bitsize, i;
+    struct qemu_plugin_reg_ctx *ctx;
+
+    reqested_len = len;
+    ctx = g_new0(struct qemu_plugin_reg_ctx, 1);
+    ctx->cpu = current_cpu;
+    ctx->regnums = g_new0(size_t, reqested_len);
+    ctx->bitsizes = g_new0(size_t, reqested_len);
+    ctx->names = g_new0(gchar*, reqested_len);
+    ctx->offsets = g_new0(size_t, reqested_len);
+
+    actual_len = 0;
+    total_bitsize = 0;
+    for (i = 0; i < reqested_len; i++) {
+        int reg = 0, bitsize = 0;
+        bool found = gdb_find_register_idx_and_bitsize(ctx->cpu, names[i],
+                                                       &reg, &bitsize);
+        if (!found)
+            continue;
+
+        ctx->regnums[actual_len] = reg;
+        ctx->bitsizes[actual_len] = bitsize;
+        ctx->names[actual_len] = g_strdup(names[i]);
+        ctx->offsets[actual_len] = total_bitsize;
+        actual_len++;
+        total_bitsize += bitsize;
+    }
+    ctx->n_regs = actual_len;
+
+    if (actual_len == 0) {
+        qemu_plugin_reg_free_context(ctx);
+        return NULL;
+    }
+
+    if ((total_bitsize % CHAR_BIT) != 0) {
+        error_report("Unexpected register bitsize: %ld", total_bitsize);
+        exit(EXIT_FAILURE);
+    }
+    ctx->alloc_data_len = total_bitsize / 8;
+    ctx->data = g_byte_array_sized_new(ctx->alloc_data_len);
+
+    return ctx;
+}
+
+void qemu_plugin_reg_free_context(struct qemu_plugin_reg_ctx *ctx)
+{
+    if (ctx == NULL)
+        return;
+
+    g_byte_array_free(ctx->data, true);
+    g_free(ctx->offsets);
+    g_strfreev(ctx->names);
+    g_free(ctx->bitsizes);
+    g_free(ctx->regnums);
+    g_free(ctx);
+}
+
+size_t qemu_plugin_n_regs(struct qemu_plugin_reg_ctx *ctx)
+{
+    return (ctx) ? ctx->n_regs : 0;
+}
+
+static inline bool reg_context_is_valid(struct qemu_plugin_reg_ctx *ctx)
+{
+    return ctx && ctx->data;
+}
+
+static inline bool reg_index_is_valid(struct qemu_plugin_reg_ctx *ctx, size_t idx)
+{
+    return idx < ctx->n_regs && idx <= INT_MAX;
+}
+
+const void *qemu_plugin_reg_get_ptr(struct qemu_plugin_reg_ctx *ctx, size_t idx)
+{
+    if (!reg_context_is_valid(ctx) || !reg_index_is_valid(ctx, idx))
+        return NULL;
+
+    size_t offset = ctx->offsets[idx] / CHAR_BIT;
+    return (uint8_t *)ctx->data->data + offset;
+}
+
+size_t qemu_plugin_reg_get_size(struct qemu_plugin_reg_ctx *ctx, size_t idx)
+{
+    if (!reg_context_is_valid(ctx) || !reg_index_is_valid(ctx, idx))
+        return 0;
+
+    if ((ctx->bitsizes[idx] % CHAR_BIT) != 0) {
+        error_report("Unexpected register bitsize: %ld", ctx->bitsizes[idx]);
+        exit(EXIT_FAILURE);
+    }
+
+    return ctx->bitsizes[idx] / CHAR_BIT;
+}
+
+const char *qemu_plugin_reg_get_name(struct qemu_plugin_reg_ctx *ctx, size_t idx)
+{
+    if (!reg_context_is_valid(ctx) || !reg_index_is_valid(ctx, idx))
+        return NULL;
+
+    return ctx->names[idx];
+}
+
+void qemu_plugin_regs_read_all(struct qemu_plugin_reg_ctx *ctx)
+{
+    g_byte_array_set_size(ctx->data, 0);
+    size_t i;
+    for (i = 0; i < ctx->n_regs; i++) {
+        gdb_read_register(ctx->cpu, ctx->data, ctx->regnums[i]);
+    }
+    if (ctx->data->len != ctx->alloc_data_len) {
+        error_report("Expected data size after reading registers: %ld, got %u",
+                     ctx->alloc_data_len, ctx->data->len);
+        exit(EXIT_FAILURE);
+    }
+}
+
+bool qemu_plugin_find_reg(const char *name, int *regnum)
 {
     if (name == NULL)
         return false;
 
-    int reg = 0, bitsize = 0;
+    int num = 0, bitsize = 0;
     bool found = gdb_find_register_idx_and_bitsize(current_cpu, name,
-                                                   &reg, &bitsize);
-    if (idx)
-        *idx = reg;
+                                                   &num, &bitsize);
+    if (regnum)
+        *regnum = num;
     return found;
 }
 
-void *qemu_plugin_read_reg(size_t idx, size_t *size)
+const void *qemu_plugin_read_reg(int regnum, size_t *size)
 {
-    g_assert(idx <= INT_MAX);
-
-    GByteArray* arr = g_byte_array_new();
-    gdb_read_register(current_cpu, arr, idx);
+    GByteArray *arr = g_byte_array_new();
+    gdb_read_register(current_cpu, arr, regnum);
     if (size)
         *size = arr->len;
     return g_byte_array_free(arr, false);

@@ -42,6 +42,13 @@
   qemu_plugin_tb_vaddr;
   qemu_plugin_uninstall;
   qemu_plugin_vcpu_for_each;
+  qemu_plugin_reg_create_context;
+  qemu_plugin_reg_free_context;
+  qemu_plugin_n_regs;
+  qemu_plugin_reg_get_ptr;
+  qemu_plugin_reg_get_size;
+  qemu_plugin_reg_get_name;
+  qemu_plugin_regs_read_all;
   qemu_plugin_find_reg;
   qemu_plugin_read_reg;
 };
